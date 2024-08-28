@@ -1,13 +1,6 @@
 # opensocial
 
-USING OPENSOCIAL PROJECT
+opensocial is a new social media network to feel like Twitter, but...
+We offer Apple Design standard, so it looks like It's from Apple. Twitter have only like button(with heart icon), we have like(thumbUp) and dislike(thumbDown), which will change soon to love(heart icon).
 
-FDX DOES NOT OFFER TO USE OUR APP OR MODIFIED APP FOR YOUR MONETIZING. YOU CAN MODIFY OUR APP FOR YOUR PRIVATE PURPOSE.
-
-IN EVERY MODIFIED APP, THERE IS NEEDED TO INCLUDE HERE: Originally developed by Filip Bukovina from fdx, modified by ...., private purpose only. We're using opensocial version .... .
-
-THANKS A KEEP OPENSOCIAL FREE AND SAFE.
-
-FILIP, FDX CEO, DEVELOPER OF OPENSOCIAL
-
-LAST UPDATED 4TH JULY 2024.
+At this time, we're having problems with XCFramework, so no screenshots now, but we're trying to fix this last issue as soon as possible.
