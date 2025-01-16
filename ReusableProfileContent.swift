@@ -1,10 +1,3 @@
-//
-//  ReusableProfileContent.swift
-//  opensocial
-//
-//  Created by Filip Bukovina on 21.06.2024.
-//
-
 import SwiftUI
 import SDWebImageSwiftUI
 
@@ -20,13 +13,6 @@ struct ReusableProfileContent: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 100, height: 100)
                         .clipShape(Circle())
-                        .onFailure { error in
-                            Image("NullProfile")
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 100, height: 100)
-                                .clipShape(Circle())
-                        }
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(user.username)
@@ -55,10 +41,10 @@ struct ReusableProfileContent: View {
                     .foregroundColor(.black)
                     .hAlign(.leading)
                     .padding(.vertical,15)
-                
-                ReusablePostsView(basedOnUID: true, uid: user.userUID, posts: $fetchedPosts)
+              
             }
             .padding(15)
         }
     }
 }
+

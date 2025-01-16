@@ -1,4 +1,3 @@
-//
 //  LoginView.swift
 //  opensocial
 //
@@ -9,6 +8,8 @@ import SwiftUI
 import Firebase
 import FirebaseFirestore
 import FirebaseStorage
+import FirebaseCore
+import FirebaseAuth
 
 struct LoginView: View {
     // MARK: User Details
@@ -30,8 +31,12 @@ struct LoginView: View {
                 .font(.largeTitle.bold())
                 .hAlign(.leading)
             
-            Text("Welcome Back,\nWe're happy, that you are here")
+            Text("Welcome Back,\nWe're happy, that you are back.")
                 .font(.title3)
+                .hAlign(.leading)
+            
+            Text("Version 0.1(9)")
+                .font(.caption)
                 .hAlign(.leading)
             
             VStack(spacing: 12){
@@ -95,52 +100,52 @@ struct LoginView: View {
                 // With the help of Swift Concurrency Auth can be done with Single Line
                 try await Auth.auth().signIn(withEmail: emailID, password: password)
                 print("User Found")
-                try await fetchUser()
-            }catch{
+                }catch{
                 await setError(error)
+                 }
             }
+        }
+        
+        // MARK: If User if Found then Fetching User Data From Firestore
+        func fetchUser()async throws{
+            guard let userID = Auth.auth().currentUser?.uid else{return}
+            let user = try await Firestore.firestore().collection("Users").document(userID).getDocument(as: User.self)
+            // MARK: UI Updating Must be Run On Main Thread
+            await MainActor.run(body: {
+                // Setting UserDefaults data and Changing App's Auth Status
+                userUID = userID
+                userNameStored = user.username
+                profileURL = user.userProfileURL
+                logStatus = true
+            })
+        }
+        
+        func resetPassword(){
+            Task{
+                do{
+                    // With the help of Swift Concurrency Auth can be done with Single Line
+                    try await Auth.auth().sendPasswordReset(withEmail: emailID)
+                    print("Link Sent")
+                }catch{
+                    await setError(error)
+                }
+            }
+        }
+        
+        // MARK: Displaying Errors VIA Alert
+        func setError(_ error: Error)async{
+            // MARK: UI Must be Updated on Main Thread
+            await MainActor.run(body: {
+                errorMessage = error.localizedDescription
+                showError.toggle()
+                isLoading = false
+            })
         }
     }
     
-    // MARK: If User if Found then Fetching User Data From Firestore
-    func fetchUser()async throws{
-        guard let userID = Auth.auth().currentUser?.uid else{return}
-        let user = try await Firestore.firestore().collection("Users").document(userID).getDocument(as: User.self)
-        // MARK: UI Updating Must be Run On Main Thread
-        await MainActor.run(body: {
-            // Setting UserDefaults data and Changing App's Auth Status
-            userUID = userID
-            userNameStored = user.username
-            profileURL = user.userProfileURL
-            logStatus = true
-        })
-    }
-    
-    func resetPassword(){
-        Task{
-            do{
-                // With the help of Swift Concurrency Auth can be done with Single Line
-                try await Auth.auth().sendPasswordReset(withEmail: emailID)
-                print("Link Sent")
-            }catch{
-                await setError(error)
-            }
+    struct LoginView_Previews: PreviewProvider {
+        static var previews: some View {
+            LoginView()
         }
     }
-    
-    // MARK: Displaying Errors VIA Alert
-    func setError(_ error: Error)async{
-        // MARK: UI Must be Updated on Main Thread
-        await MainActor.run(body: {
-            errorMessage = error.localizedDescription
-            showError.toggle()
-            isLoading = false
-        })
-    }
-}
 
-struct LoginView_Previews: PreviewProvider {
-    static var previews: some View {
-        LoginView()
-    }
-}

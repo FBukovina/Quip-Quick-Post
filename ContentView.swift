@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Firebase
+import FirebaseCore
 
 struct ContentView: View {
     @AppStorage("log_status") var logStatus: Bool = false
@@ -14,7 +16,7 @@ struct ContentView: View {
         if logStatus{
             Text("Main View")
         }else{
-            LoginView()
+            MainView()
         }
     }
 }
