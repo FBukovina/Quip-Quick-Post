@@ -116,7 +116,7 @@ struct SettingsView: View {
     
     // MARK: - Get Verified
     func getVerified() {
-        if let url = URL(string: "https://verify.didit.me/session/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Mzc2MzczNzAsImV4cCI6MTczODI0MjE3MCwic2Vzc2lvbl9pZCI6ImFlMTA2NTFmLTA0NTEtNGNiOC05OWQyLTkwNDEwYTE4ZTM0YyJ9.Oyd2HmPiEy6Y-XYsXAfmSNjOsywjqncYPJ3Kx02FPuE") {
+        if let url = URL(string: "") {
             UIApplication.shared.open(url)
         }
     }
