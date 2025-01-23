@@ -11,16 +11,19 @@ import Firebase
 import FirebaseStorage
 
 struct CreateNewPost: View {
-    /// - Callbacks
-    var onPost: (Post)->()
-    /// - Post Properties
+    // MARK: - Callback when a new post is successfully created
+    var onPost: (Post) -> ()
+    
+    // MARK: - Post Properties
     @State private var postText: String = ""
     @State private var postImageData: Data?
-    /// - Stored User Data From UserDefaults(AppStorage)
+    
+    // MARK: - Stored User Data (via AppStorage)
     @AppStorage("user_profile_url") private var profileURL: URL?
     @AppStorage("user_name") private var userName: String = ""
     @AppStorage("user_UID") private var userUID: String = ""
-    /// - View Properties
+    
+    // MARK: - View Properties
     @Environment(\.dismiss) private var dismiss
     @State private var isLoading: Bool = false
     @State private var errorMessage: String = ""
@@ -28,11 +31,13 @@ struct CreateNewPost: View {
     @State private var showImagePicker: Bool = false
     @State private var photoItem: PhotosPickerItem?
     @FocusState private var showKeyboard: Bool
+    
     var body: some View {
-        VStack{
-            HStack{
+        VStack {
+            // Top bar with Cancel and Post buttons
+            HStack {
                 Menu {
-                    Button("Cancel",role: .destructive){
+                    Button("Cancel", role: .destructive) {
                         dismiss()
                     }
                 } label: {
@@ -42,41 +47,43 @@ struct CreateNewPost: View {
                 }
                 .hAlign(.leading)
                 
-                Button(action: createPost){
+                Button(action: createPost) {
                     Text("Post")
                         .font(.callout)
                         .foregroundColor(.white)
-                        .padding(.horizontal,20)
-                        .padding(.vertical,6)
-                        .background(.black,in: Capsule())
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
+                        .background(.black, in: Capsule())
                 }
-                .disableWithOpacity(postText == "")
+                .disableWithOpacity(postText.isEmpty)
             }
-            .padding(.horizontal,15)
-            .padding(.vertical,10)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
             .background {
                 Rectangle()
                     .fill(.gray.opacity(0.05))
                     .ignoresSafeArea()
             }
             
+            // Main scroll area for post text + optional image
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 15){
-                    TextField("What's up ?!", text: $postText,axis: .vertical)
+                VStack(spacing: 15) {
+                    TextField("What's up?!", text: $postText, axis: .vertical)
                         .focused($showKeyboard)
                     
-                    if let postImageData,let image = UIImage(data: postImageData){
-                        GeometryReader{
-                            let size = $0.size
+                    // If there's an image, display it with a delete button
+                    if let postImageData,
+                       let image = UIImage(data: postImageData) {
+                        GeometryReader { proxy in
+                            let size = proxy.size
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(width: size.width, height: size.height)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                /// - Delete Button
                                 .overlay(alignment: .topTrailing) {
                                     Button {
-                                        withAnimation(.easeInOut(duration: 0.25)){
+                                        withAnimation(.easeInOut) {
                                             self.postImageData = nil
                                         }
                                     } label: {
@@ -96,7 +103,8 @@ struct CreateNewPost: View {
             
             Divider()
             
-            HStack{
+            // Bottom bar with photo picker and a Done button
+            HStack {
                 Button {
                     showImagePicker.toggle()
                 } label: {
@@ -105,95 +113,127 @@ struct CreateNewPost: View {
                 }
                 .hAlign(.leading)
                 
-                Button("Done"){
+                Button("Done") {
                     showKeyboard = false
                 }
                 .opacity(showKeyboard ? 1 : 0)
                 .animation(.easeInOut(duration: 0.15), value: showKeyboard)
             }
             .foregroundColor(.black)
-            .padding(.horizontal,15)
-            .padding(.vertical,10)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
         }
-    .vAlign(.top)
+        .vAlign(.top)
+        
+        // MARK: - Image Picker
         .photosPicker(isPresented: $showImagePicker, selection: $photoItem)
         .onChange(of: photoItem) { newValue in
-            if let newValue{
-                Task{
-                    if let rawImageData = try? await newValue.loadTransferable(type: Data.self),let image = UIImage(data: rawImageData),let compressedImageData = image.jpegData(compressionQuality: 0.5){
-                        /// UI Must be done on Main Thread
-                        await MainActor.run(body: {
+            if let newValue {
+                Task {
+                    // Load and compress the selected image
+                    if let rawImageData = try? await newValue.loadTransferable(type: Data.self),
+                       let image = UIImage(data: rawImageData),
+                       let compressedImageData = image.jpegData(compressionQuality: 0.5) {
+                        await MainActor.run {
                             postImageData = compressedImageData
                             photoItem = nil
-                        })
+                        }
                     }
                 }
             }
         }
+        
+        // MARK: - Error Alert
         .alert(errorMessage, isPresented: $showError, actions: {})
-        /// - Loading View
+        
+        // MARK: - Loading View
         .overlay {
             LoadingView(show: $isLoading)
         }
     }
     
-    // MARK: Post Content To Firebase
-    func createPost(){
+    // MARK: - Post to Firebase
+    func createPost() {
         isLoading = true
         showKeyboard = false
-        Task{
-            do{
-                guard let profileURL = profileURL else{return}
-                /// Step 1: Uploading Image If any
-                /// Used to delete the Post(Later shown in the Video)
+        
+        Task {
+            do {
+                // Ensure user profile is available
+                guard let profileURL = profileURL else {
+                    throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Missing profile URL."])
+                }
+                
                 let imageReferenceID = "\(userUID)\(Date())"
-                let storageRef = Storage.storage().reference().child("Post_Images").child(imageReferenceID)
-                if let postImageData{
+                let storageRef = Storage.storage().reference()
+                    .child("Post_Images")
+                    .child(imageReferenceID)
+                
+                // If there's an image, upload it
+                if let postImageData {
                     let _ = try await storageRef.putDataAsync(postImageData)
                     let downloadURL = try await storageRef.downloadURL()
                     
-                    /// Step 3: Create Post Object With Image Id And URL
-                    let post = Post(text: postText, imageURL: downloadURL, imageReferenceID: imageReferenceID, userName: userName, userUID: userUID, userProfileURL: profileURL)
+                    // Create a Post model with image
+                    let post = Post(
+                        text: postText,
+                        imageURL: downloadURL,
+                        imageReferenceID: imageReferenceID,
+                        userName: userName,
+                        userUID: userUID,
+                        userProfileURL: profileURL
+                    )
+                    
+                    // Save to Firestore
                     try await createDocumentAtFirebase(post)
-                }else{
-                    /// Step 2: Directly Post Text Data to Firebase (Since there is no Images Present)
-                    let post = Post(text: postText, userName: userName, userUID: userUID, userProfileURL: profileURL)
+                    
+                } else {
+                    // No image -> just post text
+                    let post = Post(
+                        text: postText,
+                        userName: userName,
+                        userUID: userUID,
+                        userProfileURL: profileURL
+                    )
+                    // Save to Firestore
                     try await createDocumentAtFirebase(post)
                 }
-            }catch{
+                
+            } catch {
                 await setError(error)
             }
         }
     }
     
-    func createDocumentAtFirebase(_ post: Post)async throws{
-        /// - Writing Document to Firebase Firestore
-        let doc = Firestore.firestore().collection("Posts").document()
-        let _ = try doc.setData(from: post, completion: { error in
-            if error == nil{
-                /// Post Successfully Stored at Firebase
+    // MARK: - Write the Post Document to Firestore
+    func createDocumentAtFirebase(_ post: Post) async throws {
+        let docRef = Firestore.firestore().collection("Posts").document()
+        try docRef.setData(from: post) { error in
+            if error == nil {
+                // Post successfully stored
                 isLoading = false
                 var updatedPost = post
-                updatedPost.id = doc.documentID
+                updatedPost.id = docRef.documentID
                 onPost(updatedPost)
                 dismiss()
+            } else {
+                Task { await setError(error!) }
             }
-        })
+        }
     }
     
-    // MARK: Displaying Errors as Alert
-    func setError(_ error: Error)async{
-        await MainActor.run(body: {
+    // MARK: - Handle Errors
+    func setError(_ error: Error) async {
+        await MainActor.run {
             errorMessage = error.localizedDescription
             showError.toggle()
-        })
+            isLoading = false
+        }
     }
 }
 
 struct CreateNewPost_Previews: PreviewProvider {
     static var previews: some View {
-        CreateNewPost{_ in
-            
-        }
+        CreateNewPost { _ in }
     }
 }
