@@ -36,41 +36,48 @@ struct CommentsView: View {
             VStack {
                 if comments.isEmpty {
                     Text("No comments yet.")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary) // Better contrast in dark mode
                         .padding(.top, 50)
                 } else {
                     List(comments) { comment in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(comment.userName)
                                 .fontWeight(.semibold)
+                                .foregroundColor(.primary) // Adapts to dark/light mode
                             
                             Text(comment.text)
+                                .foregroundColor(.primary) // Text color adapts to theme
                             
                             Text(comment.publishedDate.formatted(
                                     date: .abbreviated,
                                     time: .shortened
                                  ))
                                 .font(.caption)
-                                .foregroundColor(.gray)
+                                .foregroundColor(.secondary) // Better contrast in dark mode
                         }
                         .padding(.vertical, 4)
                     }
                     .listStyle(.insetGrouped)
+                    .background(Color(UIColor.systemBackground)) // Matches system theme for background
                 }
                 
                 // Add a new comment
                 HStack {
                     TextField("Write a comment...", text: $newComment)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .foregroundColor(.primary) // Text color adapts to theme
                     
                     Button("Send") {
                         addComment()
                     }
                     .disabled(newComment.isEmpty)
+                    .foregroundColor(.primary) // Button text adapts to theme
                 }
                 .padding()
+                .background(Color(UIColor.systemBackground)) // Matches system theme for background
             }
             .navigationTitle("Comments")
+            .background(Color(UIColor.systemBackground)) // Ensure the entire view matches system theme
             .onAppear {
                 fetchComments()
             }

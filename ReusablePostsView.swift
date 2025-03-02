@@ -6,93 +6,85 @@
 //
 
 import SwiftUI
-import Firebase
+import FirebaseFirestore
 
 struct ReusablePostsView: View {
     @Binding var posts: [Post]
-    /// - View Properties
-    @State var isFetching: Bool = true
+    @State private var isFetching: Bool = false
+    
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack{
-                if isFetching{
+            LazyVStack(spacing: 15) {
+                if isFetching {
                     ProgressView()
-                        .padding(.top,30)
-                }else{
-                    if posts.isEmpty{
-                        /// No Post's Found on Firestore
+                        .padding(.top, 30)
+                        .tint(.primary)
+                } else {
+                    if posts.isEmpty {
                         Text("No Posts Found")
                             .font(.caption)
-                            .foregroundColor(.gray)
-                            .padding(.top,30)
-                    }else{
-                        /// - Displaying Post's
-                        Posts()
+                            .foregroundColor(.secondary)
+                            .padding(.top, 30)
+                    } else {
+                        ForEach(posts) { post in
+                            PostCardView(post: post) { updatedPost in
+                                if let index = posts.firstIndex(where: { $0.id == updatedPost.id }) {
+                                    posts[index] = updatedPost
+                                }
+                            } onDelete: {
+                                posts.removeAll { $0.id == post.id }
+                            }
+                        }
                     }
                 }
             }
             .padding(15)
         }
         .refreshable {
-            /// - Scroll to Refresh
             isFetching = true
             posts = []
-            await fetchPosts()
+            Task {
+                await fetchPosts()
+            }
         }
-        .task {
-            /// - Fetching For One Time
-            guard posts.isEmpty else{return}
-            await fetchPosts()
-        }
-    }
-    
-    /// - Displaying Fetched Post's
-    @ViewBuilder
-    func Posts()->some View{
-        ForEach(posts){post in
-            PostCardView(post: post) { updatedPost in
-                /// Updating Post in the Array
-                if let index = posts.firstIndex(where: { post in
-                    post.id == updatedPost.id
-                }){
-                    posts[index].likedIDs = updatedPost.likedIDs
-                    posts[index].dislikedIDs = updatedPost.dislikedIDs
-                }
-            } onDelete: {
-                /// Removing Post From the Array
-                withAnimation(.easeInOut(duration: 0.25)){
-                    posts.removeAll{post.id == $0.id}
+        .onAppear {
+            if posts.isEmpty {
+                Task {
+                    await fetchPosts()
                 }
             }
-            
-            Divider()
-                .padding(.horizontal,-15)
         }
     }
     
-    /// - Fetching Post's
-    func fetchPosts()async{
-        do{
-            var query: Query!
-            query = Firestore.firestore().collection("Posts")
+    func fetchPosts() async {
+        do {
+            let query = Firestore.firestore().collection("Posts")
                 .order(by: "publishedDate", descending: true)
                 .limit(to: 20)
-            let docs = try await query.getDocuments()
-            let fetchedPosts = docs.documents.compactMap { doc -> Post? in
-                try? doc.data(as: Post.self)
+            let snapshot = try await query.getDocuments()
+            let fetchedPosts = try snapshot.documents.compactMap { try $0.data(as: Post.self) }
+            
+            await MainActor.run {
+                self.posts = fetchedPosts
+                self.isFetching = false
             }
-            await MainActor.run(body: {
-                posts = fetchedPosts
-                isFetching = false
-            })
-        }catch{
-            print(error.localizedDescription)
+        } catch {
+            print("Error fetching posts: \(error.localizedDescription)")
+            await MainActor.run {
+                self.isFetching = false
+            }
         }
     }
 }
 
 struct ReusablePostsView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ReusablePostsView(posts: .constant([]))
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Dark Mode")
+        
+        ReusablePostsView(posts: .constant([]))
+            .preferredColorScheme(.light)
+            .previewDisplayName("Light Mode")
     }
 }

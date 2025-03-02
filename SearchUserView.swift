@@ -21,6 +21,7 @@ struct SearchUserView: View {
                 } label: {
                     Text(user.username)
                         .font(.callout)
+                        .foregroundColor(.primary) // Adapts to dark/light mode
                         .hAlign(.leading)
                 }
             }
@@ -38,6 +39,7 @@ struct SearchUserView: View {
                 fetchedUsers = []
             }
         })
+        .background(Color(UIColor.systemBackground)) // Matches system theme for background
     }
     
     func searchUsers()async{
@@ -64,6 +66,14 @@ struct SearchUserView: View {
 
 struct SearchUserView_Previews: PreviewProvider {
     static var previews: some View {
-        SearchUserView()
+        NavigationView {
+            SearchUserView()
+                .preferredColorScheme(.dark)
+                .previewDisplayName("Dark Mode")
+            
+            SearchUserView()
+                .preferredColorScheme(.light)
+                .previewDisplayName("Light Mode")
+        }
     }
 }

@@ -1,3 +1,10 @@
+//
+//  RegisterView.swift
+//  opensocial
+//
+//  Created by Filip Bukovina on 21.06.2024.
+//
+
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -5,48 +12,49 @@ import FirebaseStorage
 import PhotosUI
 
 struct RegisterView: View {
-    // MARK: User Details
-    @State var emailID: String = ""
-    @State var password: String = ""
-    @State var userName: String = ""
-    @State var userBio: String = ""
-    @State var userBioLink: String = ""
-    @State var userProfilePicData: Data?
+    // MARK: - User Details
+    @State private var emailID: String = ""
+    @State private var password: String = ""
+    @State private var userName: String = ""
+    @State private var userBio: String = ""
+    @State private var userBioLink: String = ""
+    @State private var userProfilePicData: Data?
     
-    // MARK: View Properties
-    @Environment(\.dismiss) var dismiss
-    @State var showImagePicker: Bool = false
-    @State var photoItem: PhotosPickerItem?
-    @State var showError: Bool = false
-    @State var errorMessage: String = ""
-    @State var isLoading: Bool = false
+    // MARK: - View Properties
+    @Environment(\.dismiss) private var dismiss
+    @State private var showImagePicker: Bool = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var showError: Bool = false
+    @State private var errorMessage: String = ""
+    @State private var isLoading: Bool = false
     
-    // For keyboard dismissal
+    // Dismiss Keyboard
     @FocusState private var isFocused: Bool
     
-    // MARK: UserDefaults
+    // MARK: - User Defaults
     @AppStorage("log_status") var logStatus: Bool = false
     @AppStorage("user_profile_url") var profileURL: URL?
     @AppStorage("user_name") var userNameStored: String = ""
     @AppStorage("user_UID") var userUID: String = ""
-    
+
     var body: some View {
         VStack(spacing: 10) {
             Text("Let's Register\nAccount!")
                 .font(.largeTitle.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundColor(.primary) // Adapts to dark/light mode
             
-            Text("Hello, switch to opensocial.")
+            Text("Hello, switch to Quip.")
                 .font(.title3)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundColor(.secondary) // Better contrast in dark mode
             
-            ViewThatFits {
-                ScrollView(.vertical, showsIndicators: false) {
-                    HelperView()
-                }
-                
+            // If you have many fields, make them scrollable
+            ScrollView(.vertical, showsIndicators: false) {
                 HelperView()
             }
+            .padding(.top, 10)
+            .background(Color(UIColor.systemBackground)) // ScrollView background matches theme
             
             HStack {
                 Text("Do you have an account?")
@@ -56,21 +64,23 @@ struct RegisterView: View {
                     dismiss()
                 }
                 .fontWeight(.bold)
-                .foregroundColor(.black)
+                .foregroundColor(.primary) // Better visibility in dark mode
             }
             .font(.callout)
         }
         .padding(15)
-        .padding(.top, 15)
-        .overlay(content: {
+        .background(Color(UIColor.systemBackground)) // Ensure entire view matches system theme
+        .overlay {
             LoadingView(show: $isLoading)
-        })
+        }
         .photosPicker(isPresented: $showImagePicker, selection: $photoItem)
         .onChange(of: photoItem) { _, newValue in
             if let newValue {
                 Task {
                     do {
-                        guard let imageData = try await newValue.loadTransferable(type: Data.self) else { return }
+                        guard let imageData = try await newValue.loadTransferable(type: Data.self) else {
+                            return
+                        }
                         await MainActor.run {
                             userProfilePicData = imageData
                         }
@@ -83,13 +93,15 @@ struct RegisterView: View {
         .alert(errorMessage, isPresented: $showError, actions: {})
     }
     
+    // MARK: - The UI for input fields
     @ViewBuilder
     func HelperView() -> some View {
         VStack(spacing: 12) {
-            Button(action: {
+            Button {
                 showImagePicker.toggle()
-            }) {
-                if let userProfilePicData, let image = UIImage(data: userProfilePicData) {
+            } label: {
+                if let data = userProfilePicData,
+                   let image = UIImage(data: data) {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -102,86 +114,148 @@ struct RegisterView: View {
             }
             .frame(width: 85, height: 85)
             .clipShape(Circle())
-            
             TextField("Username", text: $userName)
                 .textContentType(.username)
-                .border(Color.gray.opacity(0.5), width: 2)
-                .focused($isFocused)
+                .border(1, Color.gray.opacity(0.5))
+                .padding(.top, 25)
+                .foregroundColor(.primary)
+                .background(Color(UIColor.systemBackground))
             
             TextField("Email", text: $emailID)
                 .textContentType(.emailAddress)
-                .border(Color.gray.opacity(0.5), width: 2)
-                .focused($isFocused)
+                .border(1, Color.gray.opacity(0.5))
+                .padding(.top, 25)
+                .foregroundColor(.primary)
+                .background(Color(UIColor.systemBackground))
             
             SecureField("Password", text: $password)
-                .textContentType(.newPassword)
-                .border(Color.gray.opacity(0.5), width: 2)
-                .focused($isFocused)
+                .textContentType(.password)
+                .border(1, Color.gray.opacity(0.5))
+                .padding(.top, 25)
+                .foregroundColor(.primary)
+                .background(Color(UIColor.systemBackground))
             
-            TextField("About You", text: $userBio, axis: .vertical)
-                .frame(minHeight: 100, alignment: .top)
-                .textContentType(.none)
-                .border(Color.gray.opacity(0.5), width: 2)
-                .focused($isFocused)
+            // If you don't truly require a bio, comment this out
+            TextField("About You (Optional)", text: $userBio, axis: .vertical)
+                .border(1, Color.gray.opacity(0.5))
+                .padding(.top, 25)
+                .foregroundColor(.primary)
+                .background(Color(UIColor.systemBackground))
             
+            // If you don't require a link, keep it optional
             TextField("Bio Link (Optional)", text: $userBioLink)
                 .textContentType(.URL)
-                .border(Color.gray.opacity(0.5), width: 2)
-                .focused($isFocused)
+                .border(1, Color.gray.opacity(0.5))
+                .padding(.top, 25)
+                .foregroundColor(.primary)
+                .background(Color(UIColor.systemBackground))
             
             Button(action: registerUser) {
                 Text("Sign up")
                     .foregroundColor(.white)
+                    .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
                     .background(Color.black)
+                    .clipShape(Capsule())
             }
-            .disabled(userName.isEmpty || userBio.isEmpty || emailID.isEmpty || password.isEmpty || userProfilePicData == nil)
+            // Make sure the button is not accidentally disabled
+            // If you require a profile pic & certain fields, re-add them
+            .disabled(emailID.isEmpty || password.isEmpty || userName.isEmpty)
             .padding(.top, 10)
         }
     }
     
-    struct LoadingView: View {
-        @Binding var show: Bool
-        
-        var body: some View {
-            if show {
-                ZStack {
-                    Color.black.opacity(0.3)
-                        .edgesIgnoringSafeArea(.all)
-                    
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(10)
-                }
-            }
-        }
-    }
-    
-    // MARK: Register User Logic
+    // MARK: - Register Logic
     func registerUser() {
-        isFocused = false // Close keyboard
+        print("Register button tapped")
+        isFocused = false
         isLoading = true
+        
         Task {
             do {
-                // Registration logic here...
+                // 1) Create user in Firebase Auth
+                print("Creating user with email: \(emailID)")
+                let authResult = try await Auth.auth().createUser(withEmail: emailID, password: password)
+                let currentUID = authResult.user.uid
+                print("User created with UID: \(currentUID)")
+                
+                // 2) If a profile pic is selected, upload to Storage
+                var photoURL: URL? = nil
+                if let data = userProfilePicData {
+                    print("Uploading profile picture...")
+                    let storageRef = Storage.storage().reference()
+                        .child("Profile_Images")
+                        .child(currentUID)
+                    
+                    // putDataAsync
+                    _ = try await storageRef.putDataAsync(data)
+                    photoURL = try await storageRef.downloadURL()
+                    print("Profile image uploaded, URL: \(photoURL?.absoluteString ?? "")")
+                }
+                
+                // 3) Prepare the data for Firestore
+                var userData: [String: Any] = [
+                    "username": userName,
+                    "userUID": currentUID,
+                    "userEmail": emailID
+                ]
+                
+                // If you have optional fields
+                if !userBio.isEmpty {
+                    userData["userBio"] = userBio
+                }
+                if !userBioLink.isEmpty {
+                    userData["userBioLink"] = userBioLink
+                }
+                if let photoURL {
+                    userData["userProfileURL"] = photoURL.absoluteString
+                }
+                
+                // 4) Write to Firestore
+                print("Saving user data to Firestore...")
+                try await Firestore.firestore().collection("Users")
+                    .document(currentUID)
+                    .setData(userData)
+                print("User data saved to Firestore.")
+                
+                // 5) Update local @AppStorage
+                await MainActor.run {
+                    userUID = currentUID
+                    userNameStored = userName
+                    if let photoURL { profileURL = photoURL }
+                    logStatus = true
+                    isLoading = false
+                }
+                
+                // Optionally dismiss if you want
+                // await MainActor.run { dismiss() }
+                
             } catch {
+                print("Error during registration: \(error.localizedDescription)")
                 await setError(error)
             }
         }
     }
     
+    // MARK: - Handle Errors
     func setError(_ error: Error) async {
         await MainActor.run {
             errorMessage = error.localizedDescription
-            showError = true
+            showError.toggle()
             isLoading = false
         }
     }
 }
 
+
 struct RegisterView_Previews: PreviewProvider {
     static var previews: some View {
         RegisterView()
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Dark Mode")
+        
+        RegisterView()
+            .preferredColorScheme(.light)
+            .previewDisplayName("Light Mode")
     }
 }

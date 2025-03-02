@@ -13,6 +13,7 @@ import FirebaseFirestore
 struct ProfileView: View {
     // MARK: My Profile Data
     @State private var myProfile: User?
+    @State private var myPosts: [Post] = []
     
     // MARK: User Defaults Data
     @AppStorage("user_profile_url") var profileURL: URL?
@@ -27,45 +28,68 @@ struct ProfileView: View {
     
     var body: some View {
         NavigationStack {
-            VStack {
-                if let myProfile {
-                    ReusableProfileContent(user: myProfile)
-                        .refreshable {
-                            // MARK: Refresh User Data
-                            self.myProfile = nil
-                            await fetchUserData()
+            ScrollView {
+                VStack(spacing: 20) {
+                    if let myProfile {
+                        ReusableProfileContent(user: myProfile)
+                            .refreshable {
+                                // MARK: Refresh User Data and Posts
+                                self.myProfile = nil
+                                self.myPosts = []
+                                await fetchUserData()
+                                await fetchMyPosts()
+                            }
+                        
+                        // Posts Section
+                        if !myPosts.isEmpty {
+                            VStack(alignment: .leading) {
+                                Text("Posts")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                ReusablePostsView(posts: $myPosts)
+                                    .frame(height: 300) // Limit the height to avoid overwhelming the view
+                            }
+                        } else {
+                            Text("No Posts Yet")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal)
                         }
-                } else {
-                    ProgressView()
+                    } else {
+                        ProgressView()
+                            .tint(.primary)
+                    }
                 }
             }
             .navigationTitle("My profile")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                       
-                        // MARK: Navigate to Settings
                         NavigationLink(destination: SettingsView()) {
                             Label("Settings", systemImage: "gear")
+                                .foregroundColor(.primary)
                         }
-                        
                     } label: {
                         Image(systemName: "ellipsis")
                             .rotationEffect(.degrees(90))
-                            .tint(.black)
+                            .tint(.primary)
                             .scaleEffect(0.8)
                     }
                 }
             }
+            .background(Color(UIColor.systemBackground)) // Ensure the entire view matches system theme
         }
         .overlay {
             LoadingView(show: $isLoading)
         }
         .alert(errorMessage, isPresented: $showError) { }
         .task {
-            // Initial fetch if myProfile is nil
+            // Initial fetch if myProfile or myPosts are empty
             if myProfile == nil {
                 await fetchUserData()
+            }
+            if myPosts.isEmpty {
+                await fetchMyPosts()
             }
         }
     }
@@ -83,6 +107,25 @@ struct ProfileView: View {
             }
         } catch {
             print("Error fetching user data: \(error)")
+        }
+    }
+    
+    // MARK: Fetching My Posts
+    func fetchMyPosts() async {
+        guard let userUID = Auth.auth().currentUser?.uid else { return }
+        do {
+            let query = Firestore.firestore().collection("Posts")
+                .whereField("userUID", isEqualTo: userUID)
+                .order(by: "publishedDate", descending: true)
+                .limit(to: 10) // Limit to 10 posts for performance
+            
+            let snapshot = try await query.getDocuments()
+            let posts = try snapshot.documents.compactMap { try $0.data(as: Post.self) }
+            await MainActor.run {
+                myPosts = posts
+            }
+        } catch {
+            print("Error fetching posts: \(error)")
         }
     }
     
@@ -143,6 +186,12 @@ struct ProfileView: View {
 
 struct ProfileView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ProfileView()
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Dark Mode")
+        
+        ProfileView()
+            .preferredColorScheme(.light)
+            .previewDisplayName("Light Mode")
     }
 }

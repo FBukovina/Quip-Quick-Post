@@ -1,3 +1,4 @@
+//
 //  LoginView.swift
 //  opensocial
 //
@@ -12,140 +13,196 @@ import FirebaseCore
 import FirebaseAuth
 
 struct LoginView: View {
-    // MARK: User Details
+    // MARK: - User Details
     @State var emailID: String = ""
     @State var password: String = ""
-    // MARK: View Properties
+    
+    // MARK: - View Properties
     @State var createAccount: Bool = false
     @State var showError: Bool = false
     @State var errorMessage: String = ""
     @State var isLoading: Bool = false
-    // MARK: User Defaults
+    
+    // MARK: - User Defaults
     @AppStorage("user_profile_url") var profileURL: URL?
     @AppStorage("user_name") var userNameStored: String = ""
     @AppStorage("user_UID") var userUID: String = ""
     @AppStorage("log_status") var logStatus: Bool = false
+
     var body: some View {
-        VStack(spacing: 10){
+        VStack(spacing: 10) {
             Text("Hello again!")
                 .font(.largeTitle.bold())
+                .foregroundColor(.primary)
                 .hAlign(.leading)
             
-            Text("Welcome Back,\nWe're happy, that you are back.")
+            Text("Welcome Back,\nWe're happy that you are back.")
                 .font(.title3)
+                .foregroundColor(.secondary)
                 .hAlign(.leading)
             
-            Text("Version 0.1(9)")
-                .font(.caption)
-                .hAlign(.leading)
-            
-            VStack(spacing: 12){
+            VStack(spacing: 12) {
                 TextField("Email", text: $emailID)
                     .textContentType(.emailAddress)
-                    .border(1, .gray.opacity(0.5))
-                    .padding(.top,25)
+                    .border(1, Color.gray.opacity(0.5))
+                    .padding(.top, 25)
+                    .foregroundColor(.primary)
+                    .background(Color(UIColor.systemBackground))
                 
                 SecureField("Password", text: $password)
-                    .textContentType(.emailAddress)
-                    .border(1, .gray.opacity(0.5))
+                    .textContentType(.password)
+                    .border(1, Color.gray.opacity(0.5))
+                    .foregroundColor(.primary)
+                    .background(Color(UIColor.systemBackground))
                 
-                Button("Reset password?", action: resetPassword)
+                Button("Reset password?", action: self.resetPassword) // Corrected to self.resetPassword
                     .font(.callout)
                     .fontWeight(.medium)
-                    .tint(.black)
+                    .foregroundColor(.accentColor)
                     .hAlign(.trailing)
                 
-                Button(action: loginUser){
-                    // MARK: Login Button
+                Button(action: self.loginUser) { // Corrected to self.loginUser
                     Text("Sign in")
                         .foregroundColor(.white)
                         .hAlign(.center)
-                        .fillView(.black)
+                        .padding()
+                        .background(Color.black)
+                        .cornerRadius(8)
                 }
-                .padding(.top,10)
+                .padding(.top, 10)
             }
             
-            // MARK: Register Button
-            HStack{
-                Text("Ready to use secure social?")
-                    .foregroundColor(.gray)
+            HStack {
+                Text("Ready to Quip?")
+                    .foregroundColor(.secondary)
                 
-                Button("Register Now"){
+                Button("Register Now") {
                     createAccount.toggle()
                 }
                 .fontWeight(.bold)
-                .foregroundColor(.black)
+                .foregroundColor(.accentColor)
             }
             .font(.callout)
             .vAlign(.bottom)
         }
         .vAlign(.top)
         .padding(15)
+        .background(Color(UIColor.systemBackground))
         .overlay(content: {
             LoadingView(show: $isLoading)
         })
-        // MARK: Register View VIA Sheets
         .fullScreenCover(isPresented: $createAccount) {
             RegisterView()
         }
-        // MARK: Displaying Alert
         .alert(errorMessage, isPresented: $showError, actions: {})
     }
     
-    func loginUser(){
+    // MARK: - Login User
+    func loginUser() {
         isLoading = true
         closeKeyboard()
-        Task{
-            do{
-                // With the help of Swift Concurrency Auth can be done with Single Line
-                try await Auth.auth().signIn(withEmail: emailID, password: password)
+        
+        Task {
+            do {
+                // Sign in using Firebase Auth
+                let _ = try await Auth.auth().signIn(withEmail: emailID, password: password)
                 print("User Found")
-                }catch{
+                
+                // After successful login, fetch user data from Firestore
+                try await fetchUser()
+                
+                // If fetchUser() succeeds, set isLoading to false
+                await MainActor.run {
+                    isLoading = false
+                }
+                
+            } catch {
+                // If error, stop loading + show error
+                await MainActor.run {
+                    isLoading = false
+                }
                 await setError(error)
-                 }
             }
         }
+    }
+    
+    // MARK: - Fetch User
+    func fetchUser() async throws {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        let docRef = Firestore.firestore().collection("Users").document(userID)
+        let document = try await docRef.getDocument()
         
-        // MARK: If User if Found then Fetching User Data From Firestore
-        func fetchUser()async throws{
-            guard let userID = Auth.auth().currentUser?.uid else{return}
-            let user = try await Firestore.firestore().collection("Users").document(userID).getDocument(as: User.self)
-            // MARK: UI Updating Must be Run On Main Thread
-            await MainActor.run(body: {
-                // Setting UserDefaults data and Changing App's Auth Status
+        if let data = document.data() {
+            print("Fetched user data: \(data)")
+        } else {
+            // If data doesn't exist, create new default user data
+            print("No data found for user ID: \(userID). Adding user data...")
+            try await addUserToFirestore(userID: userID, email: emailID)
+        }
+
+        // Decode Firestore data directly into the User model
+        do {
+            let user = try document.data(as: User.self)
+            // When successful, update user defaults & set logStatus = true
+            await MainActor.run {
                 userUID = userID
                 userNameStored = user.username
                 profileURL = user.userProfileURL
                 logStatus = true
-            })
-        }
-        
-        func resetPassword(){
-            Task{
-                do{
-                    // With the help of Swift Concurrency Auth can be done with Single Line
-                    try await Auth.auth().sendPasswordReset(withEmail: emailID)
-                    print("Link Sent")
-                }catch{
-                    await setError(error)
-                }
             }
-        }
-        
-        // MARK: Displaying Errors VIA Alert
-        func setError(_ error: Error)async{
-            // MARK: UI Must be Updated on Main Thread
-            await MainActor.run(body: {
-                errorMessage = error.localizedDescription
-                showError.toggle()
-                isLoading = false
-            })
+        } catch {
+            print("Decoding error: \(error)")
+            throw NSError(domain: "", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "Data decoding failed."
+            ])
         }
     }
     
-    struct LoginView_Previews: PreviewProvider {
-        static var previews: some View {
-            LoginView()
+    // MARK: - Add User Data to Firestore
+    func addUserToFirestore(userID: String, email: String) async throws {
+        let userData: [String: Any] = [
+            "username": "New User",
+            "userBio": "Write your bio here.",
+            "userBioLink": "",
+            "userUID": userID,
+            "userEmail": email,
+            "userProfileURL": ""
+        ]
+        
+        try await Firestore.firestore().collection("Users").document(userID).setData(userData)
+        print("User added to Firestore!")
+    }
+    
+    // MARK: - Reset Password
+    func resetPassword() {
+        Task {
+            do {
+                try await Auth.auth().sendPasswordReset(withEmail: emailID)
+                print("Link Sent")
+            } catch {
+                await setError(error)
+            }
         }
     }
+    
+    // MARK: - Handle Errors
+    func setError(_ error: Error) async {
+        await MainActor.run {
+            errorMessage = error.localizedDescription
+            print("Error: \(error)")
+            showError.toggle()
+        }
+    }
+}
 
+struct LoginView_Previews: PreviewProvider {
+    static var previews: some View {
+        LoginView()
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Dark Mode")
+        
+        LoginView()
+            .preferredColorScheme(.light)
+            .previewDisplayName("Light Mode")
+    }
+}

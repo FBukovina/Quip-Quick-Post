@@ -12,216 +12,135 @@ import FirebaseStorage
 
 struct PostCardView: View {
     var post: Post
+    var onUpdate: (Post) -> Void
+    var onDelete: () -> Void
     
-    /// Callbacks for parent to update or remove the post in the UI
-    var onUpdate: (Post) -> ()
-    var onDelete: () -> ()
-    
-    // The current user's UID for like/dislike logic
     @AppStorage("user_UID") private var userUID: String = ""
-    
-    // Realtime Firestore listener
-    @State private var docListener: ListenerRegistration?
-    
-    // Controls showing the comments sheet
     @State private var showCommentsSheet: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // MARK: Top: User avatar + name + optional delete menu
-            HStack(alignment: .top, spacing: 12) {
-                // Profile image
+            HStack {
                 WebImage(url: post.userProfileURL)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
                     .frame(width: 35, height: 35)
                     .clipShape(Circle())
                 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(post.userName)
-                        .font(.callout)
                         .fontWeight(.semibold)
-                    
                     Text(post.publishedDate.formatted(date: .numeric, time: .shortened))
-                        .font(.caption2)
-                        .foregroundColor(.gray)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-                
                 Spacer()
-                
-                // If this user is the post owner, show a delete button
                 if post.userUID == userUID {
                     Menu {
-                        Button("Delete Post", role: .destructive) {
-                            deletePost()
-                        }
+                        Button("Delete", role: .destructive) { deletePost() }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.caption)
-                            .rotationEffect(.degrees(-90))
-                            .foregroundColor(.black)
-                            .padding(8)
-                            .contentShape(Rectangle())
                     }
-                    .offset(x: 8)
                 }
             }
             
-            // MARK: Post Text
             Text(post.text)
-                .textSelection(.enabled)
-                .padding(.vertical, 8)
+                .foregroundColor(.primary)
             
-            // MARK: Post Image (if any)
             if let url = post.imageURL {
-                GeometryReader { geo in
-                    WebImage(url: url)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .frame(height: 200)
+                WebImage(url: url)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             
-            // MARK: Like/Dislike + Comment
             PostInteraction()
         }
-        .padding(12)
-        
-        // Listen to Firestore changes in real time
-        .onAppear {
-            if docListener == nil, let postID = post.id {
-                docListener = Firestore.firestore()
-                    .collection("Posts")
-                    .document(postID)
-                    .addSnapshotListener { snapshot, error in
-                        if let snapshot {
-                            if snapshot.exists {
-                                // Document updated
-                                if let updatedPost = try? snapshot.data(as: Post.self) {
-                                    onUpdate(updatedPost)
-                                }
-                            } else {
-                                // Document deleted
-                                onDelete()
-                            }
-                        }
-                    }
-            }
-        }
-        .onDisappear {
-            // Remove the snapshot listener to save resources
-            docListener?.remove()
-            docListener = nil
-        }
-        // Show Comments in a sheet
+        .padding()
+        .background(Color(UIColor.systemBackground))
         .sheet(isPresented: $showCommentsSheet) {
             CommentsView(post: post)
         }
     }
     
-    // MARK: UI for like/dislike + comments
     @ViewBuilder
     func PostInteraction() -> some View {
-        HStack(spacing: 6) {
-            // Like
+        HStack {
             Button(action: likePost) {
-                Image(systemName: post.likedIDs.contains(userUID)
-                       ? "hand.thumbsup.fill"
-                       : "hand.thumbsup")
+                Image(systemName: post.likedIDs.contains(userUID) ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    .foregroundColor(post.likedIDs.contains(userUID) ? .accentColor : .primary)
             }
             Text("\(post.likedIDs.count)")
-                .font(.caption)
-                .foregroundColor(.gray)
             
-            // Dislike
             Button(action: dislikePost) {
-                Image(systemName: post.dislikedIDs.contains(userUID)
-                       ? "hand.thumbsdown.fill"
-                       : "hand.thumbsdown")
+                Image(systemName: post.dislikedIDs.contains(userUID) ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                    .foregroundColor(post.dislikedIDs.contains(userUID) ? .accentColor : .primary)
             }
             Text("\(post.dislikedIDs.count)")
-                .font(.caption)
-                .foregroundColor(.gray)
             
             Spacer()
             
-            // Comment button
-            Button {
-                // Opens CommentsView sheet
-                showCommentsSheet = true
-            } label: {
+            Button(action: { showCommentsSheet = true }) {
                 Image(systemName: "text.bubble")
             }
         }
-        .foregroundColor(.black)
         .padding(.top, 8)
     }
     
-    // MARK: Like Post
     func likePost() {
         Task {
             guard let postID = post.id else { return }
             let docRef = Firestore.firestore().collection("Posts").document(postID)
-            
             if post.likedIDs.contains(userUID) {
-                try await docRef.updateData([
-                    "likedIDs": FieldValue.arrayRemove([userUID])
-                ])
+                try await docRef.updateData(["likedIDs": FieldValue.arrayRemove([userUID])])
             } else {
-                // Add to liked, remove from disliked if present
-                try await docRef.updateData([
-                    "likedIDs": FieldValue.arrayUnion([userUID]),
-                    "dislikedIDs": FieldValue.arrayRemove([userUID])
-                ])
+                try await docRef.updateData(["likedIDs": FieldValue.arrayUnion([userUID]), "dislikedIDs": FieldValue.arrayRemove([userUID])])
             }
+            onUpdate(try! await docRef.getDocument().data(as: Post.self))
         }
     }
     
-    // MARK: Dislike Post
     func dislikePost() {
         Task {
             guard let postID = post.id else { return }
             let docRef = Firestore.firestore().collection("Posts").document(postID)
-            
             if post.dislikedIDs.contains(userUID) {
-                try await docRef.updateData([
-                    "dislikedIDs": FieldValue.arrayRemove([userUID])
-                ])
+                try await docRef.updateData(["dislikedIDs": FieldValue.arrayRemove([userUID])])
             } else {
-                // Add to disliked, remove from liked if present
-                try await docRef.updateData([
-                    "likedIDs": FieldValue.arrayRemove([userUID]),
-                    "dislikedIDs": FieldValue.arrayUnion([userUID])
-                ])
+                try await docRef.updateData(["dislikedIDs": FieldValue.arrayUnion([userUID]), "likedIDs": FieldValue.arrayRemove([userUID])])
             }
+            onUpdate(try! await docRef.getDocument().data(as: Post.self))
         }
     }
     
-    // MARK: Delete Post
+    // MARK: - Delete Post Function
     func deletePost() {
         Task {
+            guard let postID = post.id else { return }
             do {
-                // If there's an image, remove it from Storage
+                let docRef = Firestore.firestore().collection("Posts").document(postID)
+                
+                // Check if the post has an image and delete it from storage if it does
                 if !post.imageReferenceID.isEmpty {
-                    let ref = Storage.storage()
-                        .reference()
-                        .child("Post_Images")
-                        .child(post.imageReferenceID)
-                    try await ref.delete()
+                    let storageRef = Storage.storage().reference().child("Post_Images").child(post.imageReferenceID)
+                    try await storageRef.delete()
                 }
                 
-                // Remove the doc from Firestore
-                guard let postID = post.id else { return }
-                try await Firestore.firestore()
-                    .collection("Posts")
-                    .document(postID)
-                    .delete()
+                // Delete the post from Firestore
+                try await docRef.delete()
                 
+                // Call onDelete to update UI
+                onDelete()
             } catch {
-                print("Delete error: \(error.localizedDescription)")
+                print("Error deleting post: \(error.localizedDescription)")
+                // Here you might want to show an error to the user or handle it differently
             }
         }
+    }
+}
+
+struct PostCardView_Previews: PreviewProvider {
+    static var previews: some View {
+        PostCardView(post: Post(text: "Sample Post", userName: "John Doe", userUID: "123", userProfileURL: URL(string: "https://example.com")!)) { _ in } onDelete: {}
     }
 }
