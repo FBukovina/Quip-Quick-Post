@@ -64,16 +64,9 @@ struct ProfileView: View {
             .navigationTitle("My profile")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        NavigationLink(destination: SettingsView()) {
-                            Label("Settings", systemImage: "gear")
-                                .foregroundColor(.primary)
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .rotationEffect(.degrees(90))
+                    NavigationLink(destination: SettingsView()) {
+                        Image(systemName: "gear")
                             .tint(.primary)
-                            .scaleEffect(0.8)
                     }
                 }
             }

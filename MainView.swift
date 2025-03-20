@@ -8,12 +8,13 @@
 import SwiftUI
 
 enum TabSelection {
-    case home, search, assist, profile
+    case home, search, notification, profile
 }
 
 struct MainView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var selectedTab: TabSelection = .home
+    @State private var showingNewPost = false
 
     var body: some View {
         ZStack {
@@ -32,8 +33,8 @@ struct MainView: View {
                     PostsView()
                 case .search:
                     SearchView()
-                case .assist:
-                    AIChatView()
+                case .notification:
+                    NotificationView()
                 case .profile:
                     ProfileView()
                 }
@@ -45,8 +46,17 @@ struct MainView: View {
                 
                 HStack(spacing: 30) {
                     tabBarIcon(systemName: "rectangle.portrait.on.rectangle.portrait.angled", tab: .home)
-                    tabBarIcon(systemName: "magnifyingglass", tab: .search)
-                    tabBarIcon(systemName: "slash.circle", tab: .assist)
+                    
+                    // Nové tlačítko pro vytvoření příspěvku
+                    Button {
+                        showingNewPost = true
+                    } label: {
+                        Image(systemName: "plus.app.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .padding(8)
+                    }
+                    
                     tabBarIcon(systemName: "person", tab: .profile)
                 }
                 .padding(.horizontal, 16)
@@ -58,6 +68,12 @@ struct MainView: View {
             }
         }
         .preferredColorScheme(colorScheme)
+        // Otevření modal sheetu s CreateNewPost
+        .sheet(isPresented: $showingNewPost) {
+            CreateNewPost { newPost in
+                // Zde můžeš zpracovat nový příspěvek – např. refresh seznamu příspěvků
+            }
+        }
     }
     
     // Ikonka pro tab bar

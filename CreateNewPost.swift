@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import PhotosUI
 import Firebase
 import FirebaseStorage
 
@@ -16,10 +15,12 @@ struct CreateNewPost: View {
     
     // MARK: - Post Properties
     @State private var postText: String = ""
-    @State private var postImageData: Data?
     
-    // Character limit and indicator
-    private let maxCharacters = 500
+    // Dynamické nastavení max počtu znaků na základě předplatného
+    @AppStorage("isPremium") private var isPremium: Bool = false
+    private var maxCharacters: Int {
+        isPremium ? 2500 : 500
+    }
     
     // MARK: - Stored User Data (via AppStorage)
     @AppStorage("user_profile_url") private var profileURL: URL?
@@ -32,8 +33,6 @@ struct CreateNewPost: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String = ""
     @State private var showError: Bool = false
-    @State private var showImagePicker: Bool = false
-    @State private var photoItem: PhotosPickerItem?
     @FocusState private var showKeyboard: Bool
     @AppStorage("debug") var debug = false
     
@@ -57,7 +56,6 @@ struct CreateNewPost: View {
                         .background(selectedTheme.color, in: Capsule())
                 }
                 .disableWithOpacity(postText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
             }
             .padding(.horizontal, 15)
             .padding(.vertical, 10)
@@ -68,10 +66,10 @@ struct CreateNewPost: View {
                     .background(Color(UIColor.systemBackground))
             }
             
-            // Main scroll area for post text + optional image
+            // Main scroll area for post text
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 15) {
-                    // TextField for post text with a 500-character limit
+                    // TextField for post text with character limit based on subscription
                     TextField("What's up?!", text: $postText, axis: .vertical)
                         .focused($showKeyboard)
                         .foregroundColor(.primary)
@@ -80,50 +78,13 @@ struct CreateNewPost: View {
                                 postText = String(newValue.prefix(maxCharacters))
                             }
                         }
-                    
-                    // Optional image preview
-                    if let postImageData,
-                       let image = UIImage(data: postImageData) {
-                        GeometryReader { proxy in
-                            let size = proxy.size
-                            Image(uiImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: size.width, height: size.height)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .overlay(alignment: .topTrailing) {
-                                    Button {
-                                        withAnimation(.easeInOut) {
-                                            self.postImageData = nil
-                                        }
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .fontWeight(.bold)
-                                            .tint(.red)
-                                    }
-                                    .padding(10)
-                                }
-                        }
-                        .clipped()
-                        .frame(height: 220)
-                        .background(Color(UIColor.systemBackground))
-                    }
                 }
                 .padding(15)
             }
             .background(Color(UIColor.systemBackground))
             
-            
-            // Bottom bar with photo picker, character counter, and Done button
+            // Bottom bar with character counter and Done button
             HStack(spacing: 20) {
-                Button {
-                    showImagePicker.toggle()
-                } label: {
-                    Image(systemName: "photo.on.rectangle")
-                        .font(.title3)
-                        .foregroundColor(.primary)
-                }
-                
                 // Circular character count indicator
                 ZStack {
                     Circle()
@@ -158,22 +119,6 @@ struct CreateNewPost: View {
             // Automatically show keyboard when view appears
             showKeyboard = true
         }
-        // MARK: - Image Picker
-        .photosPicker(isPresented: $showImagePicker, selection: $photoItem)
-        .onChange(of: photoItem) { newValue in
-            if let newValue {
-                Task {
-                    if let rawImageData = try? await newValue.loadTransferable(type: Data.self),
-                       let image = UIImage(data: rawImageData),
-                       let compressedImageData = image.jpegData(compressionQuality: 0.5) {
-                        await MainActor.run {
-                            postImageData = compressedImageData
-                            photoItem = nil
-                        }
-                    }
-                }
-            }
-        }
         // MARK: - Error Alert
         .alert(errorMessage, isPresented: $showError, actions: {})
         // MARK: - Loading View
@@ -202,34 +147,13 @@ struct CreateNewPost: View {
                         throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Missing profile URL."])
                     }
                     
-                    let imageReferenceID = "\(userUID)\(Date())"
-                    let storageRef = Storage.storage().reference()
-                        .child("Post_Images")
-                        .child(imageReferenceID)
-                    
-                    if let postImageData {
-                        let _ = try await storageRef.putDataAsync(postImageData)
-                        let downloadURL = try await storageRef.downloadURL()
-                        
-                        let post = Post(
-                            text: postText,
-                            imageURL: downloadURL,
-                            imageReferenceID: imageReferenceID,
-                            userName: userName,
-                            userUID: userUID,
-                            userProfileURL: profileURL
-                        )
-                        try await createDocumentAtFirebase(post)
-                    } else {
-                        let post = Post(
-                            text: postText,
-                            userName: userName,
-                            userUID: userUID,
-                            userProfileURL: profileURL
-                        )
-                        try await createDocumentAtFirebase(post)
-                    }
-                    
+                    let post = Post(
+                        text: postText,
+                        userName: userName,
+                        userUID: userUID,
+                        userProfileURL: profileURL
+                    )
+                    try await createDocumentAtFirebase(post)
                 } catch {
                     await setError(error)
                 }

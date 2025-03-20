@@ -1,9 +1,17 @@
+//
+//  SettingsView.swift
+//  opensocial
+//
+//  Created by Filip Bukovina on 21.06.2024.
+//
+
 import SwiftUI
 import FirebaseAuth
+import Gleap
 
 struct SettingsView: View {
     
-    let appVersion = "0.7(1)"
+    let appVersion = "0.9.10"
     
     // MARK: - AppStorage for user session
     @AppStorage("user_UID") var userUID: String = ""
@@ -33,11 +41,7 @@ struct SettingsView: View {
                         Text("Yellow").tag(Theme.yellow)
                     }
                     .pickerStyle(SegmentedPickerStyle())
-                    
-                    NavigationLink(destination: AppIconSelectionView()) {
-                        Label("Change App Icon", systemImage: "app.badge")
-                            .foregroundColor(.primary)
-                    }
+                    // Změna app ikony byla odstraněna.
                 }
                 
                 // MARK: - Account
@@ -55,12 +59,15 @@ struct SettingsView: View {
                 
                 // MARK: - Help Center Section
                 Section(header: Text("HELP CENTER").foregroundColor(.primary)) {
-                    NavigationLink(destination: Text("message me on feedback@bukovinafilip.com")) {
+                    Button(action: {
+                        Gleap.initialize(withToken: "7ujSDhBuTuLQYloDW4AI1zB4extS6wcK")
+                        // Gleap.show() lze přidat, pokud je potřeba.
+                    }) {
                         Label("Need help?", systemImage: "questionmark.circle")
                             .foregroundColor(.primary)
                     }
     
-                    NavigationLink(destination:ChangelogView ()) {
+                    NavigationLink(destination: ChangelogView()) {
                         Label("Changelog", systemImage: "sparkles")
                             .foregroundColor(.primary)
                     }
@@ -72,19 +79,19 @@ struct SettingsView: View {
                         Label("About Quip", systemImage: "info.circle")
                             .foregroundColor(.primary)
                     }
-                    NavigationLink(destination: Text("Not available during development.")) {
+                    
+                    Link(destination: URL(string: "https://bukovinafilip.com/terms-of-service")!) {
                         Label("Terms of service", systemImage: "doc.text")
                             .foregroundColor(.primary)
                     }
-                    NavigationLink(destination: Text("Detail View")) {
-                        Label("Zásady ochrany osobních údajů", systemImage: "hand.raised")
+                    
+                    Link(destination: URL(string: "https://bukovinafilip.com/privacy-policy")!) {
+                        Label("Privacy policy", systemImage: "hand.raised")
                             .foregroundColor(.primary)
                     }
-                    NavigationLink(destination: Text("Not available in this version.")) {
-                        Label("Rate Quip", systemImage: "star")
-                            .foregroundColor(.primary)
-                    }
-                    NavigationLink(destination: Text("Not available during development.")) {
+                    
+                    
+                    ShareLink(item: URL(string: "https://apps.apple.com/app/id1234567890")!, subject: Text("Check out Quip!"), message: Text("I found this app, check it out!")) {
                         Label("Share Quip", systemImage: "square.and.arrow.up")
                             .foregroundColor(.primary)
                     }
@@ -105,6 +112,21 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 .padding(.vertical, 8)
+                
+                // New Footer with Quip Logo and Developer Info
+                Section {
+                    VStack(spacing: 8) {
+                        Image("quipofficial")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 100)
+                        Text("Developed by Filip Bukovina.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                }
             }
             .listStyle(InsetGroupedListStyle())
             .background(Color(UIColor.systemBackground))
@@ -159,32 +181,24 @@ struct AboutQuip: View {
     
     var body: some View {
         if !debug {
-            AboutWebView(url: URL(string: "http://bukovinafilip.com/opensocial")!)
+            AboutWebView(url: URL(string: "http://quip.bukovinafilip.com")!)
         } else {
             UserDefaultsEditorView()
         }
     }
 }
 
-import SwiftUI
 import WebKit
 
 struct AboutWebView: UIViewRepresentable {
-    // 1
     let url: URL
 
-    
-    // 2
     func makeUIView(context: Context) -> WKWebView {
-
         return WKWebView()
     }
     
-    // 3
     func updateUIView(_ webView: WKWebView, context: Context) {
-
         let request = URLRequest(url: url)
         webView.load(request)
     }
 }
-
